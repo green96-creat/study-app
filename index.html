@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>逆算勉強カレンダー v42.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        .progress-fill { transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .v29-task-card { 
+            background: white; border-radius: 1.5rem; padding: 1.25rem; margin-bottom: 1rem; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 8px solid; position: relative;
+        }
+        .border-宿題 { border-left-color: #3b82f6; }
+        .border-提出物 { border-left-color: #f59e0b; }
+        .border-持ち物 { border-left-color: #ef4444; }
+        
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); background: white; border-top: 1px solid #eee; }
+        .calendar-header-cell { text-align: center; padding: 10px 0; font-weight: 900; font-size: 0.8rem; background: #f8fafc; border-bottom: 1px solid #eee; border-right: 1px solid #eee; }
+        .calendar-cell { min-height: 100px; border-right: 1px solid #eee; border-bottom: 1px solid #eee; padding: 4px; cursor: pointer; }
+        .event-tag { color: white; padding: 2px 6px; border-radius: 4px; margin-top: 2px; display: block; font-weight: bold; font-size: 10px; overflow: hidden; white-space: nowrap; }
+        
+        #event-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .color-dot { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 4px solid transparent; }
+        
+        /* カウントダウンバッジの基本スタイル */
+        .days-left { padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 900; border: 2px solid transparent; transition: all 0.3s; }
+        
+        .summary-chip { background: white; border: 2px solid #e2e8f0; padding: 8px 16px; border-radius: 1rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+
+        @keyframes highlight-fade {
+            0% { background-color: #fef08a; transform: scale(1.02); }
+            100% { background-color: white; transform: scale(1); }
+        }
+        .highlight-target { animation: highlight-fade 2s ease-out; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-20 font-sans text-slate-800">
+
+    <header class="bg-[#4f46e5] text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-[50]">
+        <h1 class="text-xl font-black italic">My Study Manager</h1>
+        <div class="flex bg-black/20 p-1 rounded-xl">
+            <button onclick="switchView('study')" id="btn-study" class="px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]">📚 勉強</button>
+            <button onclick="switchView('calendar')" id="btn-calendar" class="px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60">📅 予定</button>
+        </div>
+    </header>
+
+    <div id="view-study" class="max-w-2xl mx-auto p-4 space-y-6">
+        <section class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+            <input id="newTitle" type="text" placeholder="なにをやる？" class="w-full p-4 bg-slate-50 rounded-xl font-bold mb-3 outline-none focus:ring-2 ring-indigo-400">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <select id="newType" onchange="toggleInputs()" class="p-4 bg-slate-50 rounded-xl font-bold border-none">
+                    <option value="宿題">📚 宿題</option>
+                    <option value="提出物">📝 提出物</option>
+                    <option value="持ち物">🎒 持ち物</option>
+                </select>
+                <select id="newTestRef" class="p-4 bg-slate-50 rounded-xl font-bold border-none"></select>
+            </div>
+            <div id="page-inputs" class="grid grid-cols-2 gap-3 mb-3">
+                <input id="newPages" type="number" placeholder="全ページ数" class="p-4 bg-slate-50 rounded-xl font-bold outline-none">
+                <input id="newDaily" type="number" placeholder="今日の目標p" class="p-4 bg-slate-50 rounded-xl font-bold outline-none">
+            </div>
+            <button onclick="addTask()" class="w-full bg-[#10b981] text-white py-4 rounded-xl font-black text-lg shadow-md active:scale-95 transition-all">リストに追加</button>
+        </section>
+        <div id="study-list-area" class="space-y-8"></div>
+    </div>
+
+    <div id="view-calendar" class="hidden max-w-4xl mx-auto p-4">
+        <div id="calendar-summary" class="flex flex-wrap gap-3 mb-6 px-2"></div>
+        <div class="flex justify-between items-center mb-4 px-2">
+            <h2 id="cal-label" class="text-2xl font-black text-indigo-900"></h2>
+            <div class="flex gap-2">
+                <button onclick="changeMonth(-1)" class="bg-white px-4 py-2 rounded-xl shadow-sm font-black">◀</button>
+                <button onclick="changeMonth(1)" class="bg-white px-4 py-2 rounded-xl shadow-sm font-black">▶</button>
+            </div>
+        </div>
+        <div class="bg-white rounded-[1.5rem] shadow-xl overflow-hidden border border-slate-200">
+            <div class="calendar-grid">
+                <div class="calendar-header-cell text-rose-500">日</div>
+                <div class="calendar-header-cell text-slate-500">月</div>
+                <div class="calendar-header-cell text-slate-500">火</div>
+                <div class="calendar-header-cell text-slate-500">水</div>
+                <div class="calendar-header-cell text-slate-500">木</div>
+                <div class="calendar-header-cell text-slate-500">金</div>
+                <div class="calendar-header-cell text-blue-500">土</div>
+            </div>
+            <div id="calendar-grid" class="calendar-grid"></div>
+        </div>
+    </div>
+
+    <div id="event-modal" onclick="if(event.target===this)closeModal()">
+        <div class="bg-white w-[90%] max-w-md p-6 rounded-[2.5rem] shadow-2xl overflow-y-auto max-h-[90vh]" onclick="event.stopPropagation()">
+            <h3 class="text-lg font-black mb-4 text-center">予定の詳細設定</h3>
+            <div class="space-y-4">
+                <input id="modal-date" type="date" class="w-full p-4 bg-slate-50 rounded-xl font-bold border">
+                <input id="modal-name" type="text" placeholder="予定名" class="w-full p-4 bg-slate-50 rounded-xl font-bold border outline-none">
+                <textarea id="modal-note" placeholder="詳細メモ" class="w-full p-4 bg-slate-50 rounded-xl font-bold border outline-none h-24 resize-none text-sm"></textarea>
+                <div class="flex justify-around py-2">
+                    <div onclick="setModalColor('ev-red')" class="color-dot bg-[#ef4444]" id="c-ev-red"></div>
+                    <div onclick="setModalColor('ev-blue')" class="color-dot bg-[#3b82f6]" id="c-ev-blue"></div>
+                    <div onclick="setModalColor('ev-green')" class="color-dot bg-[#10b981]" id="c-ev-green"></div>
+                    <div onclick="setModalColor('ev-orange')" class="color-dot bg-[#f59e0b]" id="c-ev-orange"></div>
+                    <div onclick="setModalColor('ev-purple')" class="color-dot bg-[#8b5cf6]" id="c-ev-purple"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="closeModal()" class="py-4 bg-slate-100 rounded-xl font-bold text-slate-500">戻る</button>
+                    <button onclick="saveEvent()" class="py-4 bg-indigo-600 text-white rounded-xl font-black">保存する</button>
+                </div>
+                <button onclick="jumpToStudyFromModal()" class="w-full py-4 bg-[#10b981] text-white rounded-xl font-black shadow-md flex items-center justify-center gap-2">
+                    <span>📚 このテストの勉強ページへ</span>
+                </button>
+                <button id="del-btn" onclick="deleteEvent()" class="w-full py-2 text-rose-400 text-xs font-bold hidden">この予定を削除する</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('study_v42_tasks')) || [];
+        let events = JSON.parse(localStorage.getItem('study_v42_events')) || [];
+        let currentMonth = new Date();
+        let selectedColor = 'ev-blue';
+        let editingEventId = null;
+        let lastFinishedStates = {};
+
+        function save() {
+            localStorage.setItem('study_v42_tasks', JSON.stringify(tasks));
+            localStorage.setItem('study_v42_events', JSON.stringify(events));
+            renderStudy(); renderCalendar();
+        }
+
+        // --- 修正: カウントダウンの配色 (7日以内を濃いオレンジに変更) ---
+        function getCountdownBadge(days) {
+            let style = "";
+            let text = "";
+
+            if (days === 0) {
+                style = "bg-rose-700 text-white border-rose-900 shadow-md";
+                text = "今日！";
+            } else if (days < 0) {
+                style = "bg-slate-200 text-slate-500 border-slate-300";
+                text = "終了";
+            } else if (days <= 7) {
+                // 7日以内：燃える濃いオレンジ
+                style = "bg-[#ff5d00] text-white border-[#d44d00] shadow-sm";
+                text = "あと " + days + "日";
+            } else if (days <= 14) {
+                // 14日以内：注意のオレンジ
+                style = "bg-yellow-100 text-orange-600 border-orange-300";
+                text = "あと " + days + "日";
+            } else {
+                // それ以上：通常
+                style = "bg-orange-50 text-orange-400 border-orange-100";
+                text = "あと " + days + "日";
+            }
+
+            return `<span class="days-left ${style}">${text}</span>`;
+        }
+
+        function jumpToStudyFromModal() {
+            const targetId = editingEventId;
+            if (!targetId) { switchView('study'); closeModal(); return; }
+            switchView('study'); closeModal();
+            setTimeout(() => {
+                const element = document.getElementById(`study-group-${targetId}`);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.classList.add('highlight-target');
+                    setTimeout(() => element.classList.remove('highlight-target'), 2000);
+                }
+            }, 100);
+        }
+
+        function switchView(view) {
+            document.getElementById('view-study').classList.toggle('hidden', view !== 'study');
+            document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
+            const btnStudy = document.getElementById('btn-study');
+            const btnCal = document.getElementById('btn-calendar');
+            if(view === 'study') {
+                btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
+                btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
+            } else {
+                btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
+                btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
+            }
+            if(view === 'calendar') renderCalendar();
+        }
+
+        function getDaysLeft(dateStr) {
+            if(!dateStr) return null;
+            const today = new Date(); today.setHours(0,0,0,0);
+            const target = new Date(dateStr); target.setHours(0,0,0,0);
+            return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+        }
+
+        function renderStudy() {
+            const testEvents = events.filter(e => e.name.includes("テスト") || e.name.includes("締切"));
+            document.getElementById('newTestRef').innerHTML = '<option value="">未分類</option>' + testEvents.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+            const area = document.getElementById('study-list-area'); area.innerHTML = '';
+            const groups = [...testEvents, { id: "", name: "未分類" }];
+
+            groups.forEach(group => {
+                const groupTasks = tasks.filter(t => t.testId == group.id);
+                if(groupTasks.length === 0) return;
+                const status = getGroupStatus(group.id);
+                if (status.allFinished && !lastFinishedStates[group.id]) {
+                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#4f46e5', '#10b981', '#f59e0b'] });
+                }
+                lastFinishedStates[group.id] = status.allFinished;
+                const daysLeft = group.date ? getDaysLeft(group.date) : null;
+                const countdownHtml = daysLeft !== null ? `<span class="ml-2">${getCountdownBadge(daysLeft)}</span>` : '';
+                const likeMark = status.allFinished ? '<span class="ml-2 text-xl">👍</span>' : '';
+
+                let html = `<div id="study-group-${group.id}" class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 mb-6 transition-all">
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="flex items-center">
+                            <h2 class="text-xl font-black text-slate-700">${group.name}</h2>
+                            ${countdownHtml} ${likeMark}
+                        </div>
+                        <span class="font-black ${status.allFinished?'text-emerald-500':'text-indigo-500'}">${status.percent}%</span>
+                    </div>
+                    <div class="bg-slate-100 h-3 rounded-full overflow-hidden mb-6"><div class="progress-fill ${status.allFinished?'bg-emerald-500':'bg-indigo-500'} h-full" style="width:${status.percent}%"></div></div>`;
+                
+                groupTasks.forEach(task => {
+                    const taskDone = task.current >= task.total;
+                    const dailyDone = task.current >= task.daily && task.daily > 0;
+                    if(task.type !== '持ち物') {
+                        html += `<div class="v29-task-card border-${task.type}"><div class="flex justify-between items-start mb-1"><span class="text-[10px] font-black px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full uppercase">${task.type}</span><button onclick="deleteTask(${task.id})" class="text-slate-300 hover:text-rose-400 px-1">✕</button></div><div class="flex justify-between items-end mb-1"><div class="font-black text-lg text-slate-700">${task.title}</div><div class="font-black text-sm text-rose-400 pb-1">あと ${Math.max(0, task.total-task.current)}p</div></div><div class="text-right mb-1"><span class="font-black text-xs ${dailyDone?'text-emerald-500':'text-slate-400'}">${taskDone ? '全クリア！✨' : (dailyDone ? '今日の分達成✨' : '今日の分あと '+(task.daily - task.current)+'p')}</span></div><div class="bg-slate-100 h-3 rounded-full overflow-hidden mb-3"><div class="progress-fill ${dailyDone?'bg-emerald-500':'bg-indigo-400'} h-full" style="width:${Math.min(100, (task.current/(task.total||1))*100)}%"></div></div><div class="flex items-center justify-between text-sm"><div class="flex items-center gap-1 font-bold"><input type="number" value="${task.current}" onchange="updateProgress(${task.id}, this.value)" class="w-12 p-1 text-center bg-slate-50 border rounded-lg"><span class="text-slate-400">/ ${task.total}p</span></div><div class="flex items-center gap-2"><span class="text-[10px] font-bold text-slate-400 uppercase">1日目標</span><input type="number" value="${task.daily}" onchange="tasks.find(x=>x.id===${task.id}).daily=parseInt(this.value); save();" class="w-10 p-1 text-center bg-indigo-50 text-indigo-600 rounded-lg font-bold"></div></div></div>`;
+                    } else {
+                        html += `<div class="v29-task-card border-持ち物"><div class="flex justify-between items-center"><div class="font-black text-slate-700">🎒 ${task.title}</div><div class="flex items-center gap-2"><button onclick="updateMochimono(${task.id})" class="px-6 py-2 rounded-xl font-bold text-sm transition-all ${taskDone?'bg-emerald-500 text-white':'bg-slate-100 text-slate-500'}">${taskDone?'✅ 完了':'準備する'}</button><button onclick="deleteTask(${task.id})" class="text-slate-300 px-2">✕</button></div></div></div>`;
+                    }
+                });
+                area.insertAdjacentHTML('beforeend', html + '</div>');
+            });
+        }
+
+        function renderCalendar() {
+            const y=currentMonth.getFullYear(), m=currentMonth.getMonth();
+            document.getElementById('cal-label').innerText = `${y}年 ${m+1}月`;
+            const summaryArea = document.getElementById('calendar-summary'); summaryArea.innerHTML = '';
+            const testEvents = events.filter(e => e.name.includes("テスト") || e.name.includes("締切")).sort((a,b) => new Date(a.date) - new Date(b.date));
+            testEvents.forEach(e => {
+                const days = getDaysLeft(e.date);
+                if(days >= -1) summaryArea.insertAdjacentHTML('beforeend', `<div class="summary-chip"><span class="font-black text-slate-700 text-sm">${e.name}</span>${getCountdownBadge(days)}</div>`);
+            });
+            const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
+            const first = new Date(y, m, 1).getDay(), last = new Date(y, m+1, 0).getDate();
+            for(let i=0; i<first; i++) grid.innerHTML += '<div class="calendar-cell bg-slate-50/30"></div>';
+            for(let d=1; d<=last; d++) {
+                const dayOfWeek = new Date(y, m, d).getDay();
+                let dayClass = (dayOfWeek===0)?"text-rose-400":(dayOfWeek===6)?"text-blue-400":"text-slate-400";
+                const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                let cellHtml = `<div class="calendar-cell" onclick="openModal('${ds}')"><span class="font-bold text-sm ${dayClass}">${d}</span>`;
+                events.filter(e => e.date === ds).forEach(e => {
+                    const col = e.color === 'ev-red' ? '#ef4444' : e.color === 'ev-blue' ? '#3b82f6' : e.color === 'ev-green' ? '#10b981' : e.color === 'ev-orange' ? '#f59e0b' : '#8b5cf6';
+                    cellHtml += `<span class="event-tag" style="background:${col}" onclick="event.stopPropagation(); openModal('${e.date}', '${e.id}')">${e.name}${e.note?' 📝':''}</span>`;
+                });
+                grid.insertAdjacentHTML('beforeend', cellHtml + '</div>');
+            }
+        }
+
+        function getGroupStatus(testId) {
+            const groupTasks = tasks.filter(t => t.testId == testId);
+            if(groupTasks.length === 0) return { percent: 0, allFinished: false };
+            const allFinished = groupTasks.every(t => t.current >= (t.total || 1));
+            const studyTasks = groupTasks.filter(t => t.type !== '持ち物');
+            const total = studyTasks.reduce((s,t) => s + (t.total || 1), 0);
+            const current = studyTasks.reduce((s,t) => s + Math.min(t.current, t.total), 0);
+            return { percent: (studyTasks.length === 0) ? (allFinished ? 100 : 0) : Math.round((current / total) * 100), allFinished };
+        }
+        function updateProgress(id, val) { tasks.find(x => x.id === id).current = parseInt(val) || 0; save(); }
+        function updateMochimono(id) { const t = tasks.find(x => x.id === id); t.current = (t.current >= 1) ? 0 : 1; save(); }
+        function addTask() {
+            const title = document.getElementById('newTitle').value, type = document.getElementById('newType').value; if(!title) return;
+            tasks.push({ id: Date.now(), title, type, testId: document.getElementById('newTestRef').value, total: type==='持ち物'?1:parseInt(document.getElementById('newPages').value)||1, daily: parseInt(document.getElementById('newDaily').value)||0, current: 0 });
+            document.getElementById('newTitle').value = ''; save();
+        }
+        function deleteTask(id) { if(confirm('削除しますか？')) { tasks=tasks.filter(t=>t.id!==id); save(); } }
+        function toggleInputs() { document.getElementById('page-inputs').style.display = document.getElementById('newType').value==='持ち物'?'none':'grid'; }
+        function openModal(date, id = null) {
+            editingEventId = id; document.getElementById('modal-date').value = date;
+            if (id) {
+                const ev = events.find(e => e.id === id);
+                document.getElementById('modal-name').value = ev.name; document.getElementById('modal-note').value = ev.note || '';
+                setModalColor(ev.color || 'ev-blue'); document.getElementById('del-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('modal-name').value = ''; document.getElementById('modal-note').value = '';
+                setModalColor('ev-blue'); document.getElementById('del-btn').classList.add('hidden');
+            }
+            document.getElementById('event-modal').style.display = 'flex';
+        }
+        function closeModal() { document.getElementById('event-modal').style.display = 'none'; }
+        function setModalColor(c) { selectedColor = c; ['ev-red','ev-blue','ev-green','ev-orange','ev-purple'].forEach(col => { const el = document.getElementById('c-'+col); if(el) el.style.borderColor = (col===c)?'#4f46e5':'transparent'; }); }
+        function saveEvent() {
+            const name = document.getElementById('modal-name').value, date = document.getElementById('modal-date').value, note = document.getElementById('modal-note').value;
+            if(!name) return;
+            if(editingEventId) { const ev = events.find(e => e.id === editingEventId); ev.name = name; ev.date = date; ev.color = selectedColor; ev.note = note; }
+            else { events.push({ id: 'ev-'+Date.now(), name, date, color: selectedColor, note }); }
+            closeModal(); save();
+        }
+        function deleteEvent() { if(confirm('削除しますか？')) { events = events.filter(e => e.id !== editingEventId); closeModal(); save(); } }
+        function changeMonth(n) { currentMonth.setMonth(currentMonth.getMonth()+n); renderCalendar(); }
+        save();
+    </script>
+</body>
+</html>
