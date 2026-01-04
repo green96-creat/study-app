@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>逆算勉強カレンダー v42.0-fix</title>
+    <title>逆算勉強カレンダー v43.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
@@ -16,11 +16,10 @@
         .border-提出物 { border-left-color: #f59e0b; }
         .border-持ち物 { border-left-color: #ef4444; }
         
-        /* --- カレンダーのズレと見切れの修正箇所 --- */
         .calendar-grid { 
             display: grid; 
-            grid-template-columns: repeat(7, 1fr); /* 7列を完全に固定 */
-            background: #eee; /* 枠線用 */
+            grid-template-columns: repeat(7, 1fr);
+            background: #eee;
             gap: 1px;
             width: 100%;
         }
@@ -29,20 +28,19 @@
             background: #f8fafc;
         }
         .calendar-cell { 
-            min-height: 85px; /* iPhoneで見やすい高さ */
+            min-height: 85px;
             background: white;
             padding: 2px; 
             cursor: pointer;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* はみ出し防止 */
+            overflow: hidden;
         }
         .event-tag { 
             color: white; padding: 1px 3px; border-radius: 3px; margin-top: 1px; 
             display: block; font-weight: bold; font-size: 9px; 
-            overflow: hidden; white-space: nowrap; text-overflow: ellipsis; /* 文字が長いとき ... にする */
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
         }
-        /* -------------------------------------- */
         
         #event-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
         .color-dot { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 4px solid transparent; }
@@ -62,8 +60,8 @@
     <header class="bg-[#4f46e5] text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-[50]">
         <h1 class="text-xl font-black italic">My Study Manager</h1>
         <div class="flex bg-black/20 p-1 rounded-xl">
-            <button onclick="switchView('study')" id="btn-study" class="px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]">📚 勉強</button>
-            <button onclick="switchView('calendar')" id="btn-calendar" class="px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60">📅 予定</button>
+            <button onclick="switchView('study')" id="btn-study" class="px-5 py-1.5 rounded-lg text-sm font-black transition-all">📚 勉強</button>
+            <button onclick="switchView('calendar')" id="btn-calendar" class="px-5 py-1.5 rounded-lg text-sm font-black transition-all">📅 予定</button>
         </div>
     </header>
 
@@ -137,9 +135,11 @@
     </div>
 
     <script>
-        // ロジック部分は全てV42を継承
         let tasks = JSON.parse(localStorage.getItem('study_v42_tasks')) || [];
         let events = JSON.parse(localStorage.getItem('study_v42_events')) || [];
+        // 初期ビューを保存された設定から読み込む（なければ study）
+        let currentView = localStorage.getItem('study_v42_view') || 'study';
+        
         let currentMonth = new Date();
         let selectedColor = 'ev-blue';
         let editingEventId = null;
@@ -148,9 +148,31 @@
         function save() {
             localStorage.setItem('study_v42_tasks', JSON.stringify(tasks));
             localStorage.setItem('study_v42_events', JSON.stringify(events));
+            localStorage.setItem('study_v42_view', currentView); // 現在の表示画面も保存
             renderStudy(); renderCalendar();
         }
 
+        function switchView(view) {
+            currentView = view; // 表示状態を更新
+            document.getElementById('view-study').classList.toggle('hidden', view !== 'study');
+            document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
+            
+            const btnStudy = document.getElementById('btn-study');
+            const btnCal = document.getElementById('btn-calendar');
+            
+            if(view === 'study') {
+                btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
+                btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
+            } else {
+                btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
+                btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
+            }
+            
+            localStorage.setItem('study_v42_view', view); // 即時保存
+            if(view === 'calendar') renderCalendar();
+        }
+
+        // --- 以下、既存のロジック ---
         function getCountdownBadge(days) {
             let style = ""; let text = "";
             if (days === 0) { style = "bg-rose-700 text-white border-rose-900 shadow-md"; text = "今日！"; }
@@ -173,21 +195,6 @@
                     setTimeout(() => element.classList.remove('highlight-target'), 2000);
                 }
             }, 100);
-        }
-
-        function switchView(view) {
-            document.getElementById('view-study').classList.toggle('hidden', view !== 'study');
-            document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
-            const btnStudy = document.getElementById('btn-study');
-            const btnCal = document.getElementById('btn-calendar');
-            if(view === 'study') {
-                btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
-                btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
-            } else {
-                btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
-                btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
-            }
-            if(view === 'calendar') renderCalendar();
         }
 
         function getDaysLeft(dateStr) {
@@ -305,8 +312,10 @@
         function deleteEvent() { if(confirm('削除しますか？')) { events = events.filter(e => e.id !== editingEventId); closeModal(); save(); } }
         function changeMonth(n) { currentMonth.setMonth(currentMonth.getMonth()+n); renderCalendar(); }
         
-        // 初回表示
-        save();
+        // --- 初期化 ---
+        renderStudy();
+        renderCalendar();
+        switchView(currentView); // 保存されたビュー（勉強 or 予定）を復元
     </script>
 </body>
 </html>
