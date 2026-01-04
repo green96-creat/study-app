@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>逆算勉強カレンダー v43.0</title>
+    <title>逆算勉強カレンダー v44.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
@@ -137,9 +137,6 @@
     <script>
         let tasks = JSON.parse(localStorage.getItem('study_v42_tasks')) || [];
         let events = JSON.parse(localStorage.getItem('study_v42_events')) || [];
-        // 初期ビューを保存された設定から読み込む（なければ study）
-        let currentView = localStorage.getItem('study_v42_view') || 'study';
-        
         let currentMonth = new Date();
         let selectedColor = 'ev-blue';
         let editingEventId = null;
@@ -148,18 +145,14 @@
         function save() {
             localStorage.setItem('study_v42_tasks', JSON.stringify(tasks));
             localStorage.setItem('study_v42_events', JSON.stringify(events));
-            localStorage.setItem('study_v42_view', currentView); // 現在の表示画面も保存
             renderStudy(); renderCalendar();
         }
 
         function switchView(view) {
-            currentView = view; // 表示状態を更新
             document.getElementById('view-study').classList.toggle('hidden', view !== 'study');
             document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
-            
             const btnStudy = document.getElementById('btn-study');
             const btnCal = document.getElementById('btn-calendar');
-            
             if(view === 'study') {
                 btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
                 btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
@@ -167,12 +160,9 @@
                 btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
                 btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
             }
-            
-            localStorage.setItem('study_v42_view', view); // 即時保存
             if(view === 'calendar') renderCalendar();
         }
 
-        // --- 以下、既存のロジック ---
         function getCountdownBadge(days) {
             let style = ""; let text = "";
             if (days === 0) { style = "bg-rose-700 text-white border-rose-900 shadow-md"; text = "今日！"; }
@@ -312,10 +302,11 @@
         function deleteEvent() { if(confirm('削除しますか？')) { events = events.filter(e => e.id !== editingEventId); closeModal(); save(); } }
         function changeMonth(n) { currentMonth.setMonth(currentMonth.getMonth()+n); renderCalendar(); }
         
-        // --- 初期化 ---
+        // 初期描画
         renderStudy();
         renderCalendar();
-        switchView(currentView); // 保存されたビュー（勉強 or 予定）を復元
+        // 起動時は常にカレンダーを表示する
+        switchView('calendar');
     </script>
 </body>
 </html>
