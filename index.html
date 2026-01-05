@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>逆算勉強カレンダー v44.0</title>
+    <title>逆算勉強カレンダー v46.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
@@ -118,7 +118,7 @@
                 <div class="flex justify-around py-2">
                     <div onclick="setModalColor('ev-red')" class="color-dot bg-[#ef4444]" id="c-ev-red"></div>
                     <div onclick="setModalColor('ev-blue')" class="color-dot bg-[#3b82f6]" id="c-ev-blue"></div>
-                    <div onclick="setModalColor('ev-green')" class="color-dot bg-[#10b981]" id="c-ev-green"></div>
+                    <div onclick="setModalColor('ev-green')" class="color-dot bg-[#10b981]" id="c-ev-green) "></div>
                     <div onclick="setModalColor('ev-orange')" class="color-dot bg-[#f59e0b]" id="c-ev-orange"></div>
                     <div onclick="setModalColor('ev-purple')" class="color-dot bg-[#8b5cf6]" id="c-ev-purple"></div>
                 </div>
@@ -137,18 +137,23 @@
     <script>
         let tasks = JSON.parse(localStorage.getItem('study_v42_tasks')) || [];
         let events = JSON.parse(localStorage.getItem('study_v42_events')) || [];
+        let currentView = localStorage.getItem('study_v42_view') || 'study';
+        
         let currentMonth = new Date();
         let selectedColor = 'ev-blue';
         let editingEventId = null;
         let lastFinishedStates = {};
+        let isAppLoading = true; // 【追加】起動中フラグ
 
         function save() {
             localStorage.setItem('study_v42_tasks', JSON.stringify(tasks));
             localStorage.setItem('study_v42_events', JSON.stringify(events));
+            localStorage.setItem('study_v42_view', currentView);
             renderStudy(); renderCalendar();
         }
 
         function switchView(view) {
+            currentView = view;
             document.getElementById('view-study').classList.toggle('hidden', view !== 'study');
             document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
             const btnStudy = document.getElementById('btn-study');
@@ -160,6 +165,7 @@
                 btnCal.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all bg-white text-[#4f46e5]";
                 btnStudy.className = "px-5 py-1.5 rounded-lg text-sm font-black transition-all opacity-60";
             }
+            localStorage.setItem('study_v42_view', view);
             if(view === 'calendar') renderCalendar();
         }
 
@@ -204,10 +210,13 @@
                 const groupTasks = tasks.filter(t => t.testId == group.id);
                 if(groupTasks.length === 0) return;
                 const status = getGroupStatus(group.id);
-                if (status.allFinished && !lastFinishedStates[group.id]) {
+                
+                // 【修正】読み込み中(isAppLoading=true)は絶対に花吹雪を出さない
+                if (!isAppLoading && status.allFinished && lastFinishedStates[group.id] === false) {
                     confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#4f46e5', '#10b981', '#f59e0b'] });
                 }
                 lastFinishedStates[group.id] = status.allFinished;
+
                 const daysLeft = group.date ? getDaysLeft(group.date) : null;
                 const countdownHtml = daysLeft !== null ? `<span class="ml-2">${getCountdownBadge(daysLeft)}</span>` : '';
                 const likeMark = status.allFinished ? '<span class="ml-2 text-xl">👍</span>' : '';
@@ -302,11 +311,20 @@
         function deleteEvent() { if(confirm('削除しますか？')) { events = events.filter(e => e.id !== editingEventId); closeModal(); save(); } }
         function changeMonth(n) { currentMonth.setMonth(currentMonth.getMonth()+n); renderCalendar(); }
         
-        // 初期描画
+        // --- 起動シーケンス ---
+        // 1. 最初の描画を実行（この時は isAppLoading=true なので花吹雪は出ない）
         renderStudy();
         renderCalendar();
-        // 起動時は常にカレンダーを表示する
-        switchView('calendar');
+        switchView(currentView);
+
+        // 2. 描画が終わった直後に、今の状態を「前回の状態」として覚えさせる
+        const testEvents = events.filter(e => e.name.includes("テスト") || e.name.includes("締切"));
+        [...testEvents, { id: "" }].forEach(g => {
+            lastFinishedStates[g.id] = getGroupStatus(g.id).allFinished;
+        });
+
+        // 3. 最後にフラグを解除。これ以降の操作では花吹雪が出るようになる
+        isAppLoading = false;
     </script>
 </body>
 </html>
