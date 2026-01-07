@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>逆算勉強カレンダー v48.0</title>
+    <title>逆算勉強カレンダー v49.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
@@ -45,18 +45,31 @@
         #event-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
         .color-dot { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 4px solid transparent; }
         
+        /* バッジ：一行を維持し、絶対に潰れないように設定 */
         .days-left { 
             padding: 4px 12px; 
             border-radius: 999px; 
             font-size: 0.85rem; 
             font-weight: 900; 
             border: 2px solid transparent; 
-            transition: all 0.3s;
-            white-space: nowrap; /* バッジ内の改行禁止 */
+            white-space: nowrap;
             display: inline-block;
-            flex-shrink: 0; /* バッジが潰れないようにする */
+            flex-shrink: 0;
+            margin-top: 4px; /* 改行された時に少し隙間を作る */
         }
         
+        /* タイトル：文字を省略せず、改行を許可 */
+        .group-title {
+            font-size: 1.25rem;
+            font-weight: 900;
+            color: #334155;
+            line-height: 1.4;
+            display: block; /* 横に並ばず、ブロックとして扱うことで改行しやすくする */
+            word-break: break-all; /* 単語の途中でも改行する */
+            overflow: visible; /* はみ出しを隠さない */
+            text-overflow: clip; /* 三点リーダーを表示しない */
+        }
+
         .summary-chip { background: white; border: 2px solid #e2e8f0; padding: 8px 16px; border-radius: 1rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 
         @keyframes highlight-fade {
@@ -228,16 +241,19 @@
                 lastFinishedStates[group.id] = status.allFinished;
 
                 const daysLeft = group.date ? getDaysLeft(group.date) : null;
-                const countdownHtml = daysLeft !== null ? `<span class="ml-2 flex-shrink-0">${getCountdownBadge(daysLeft)}</span>` : '';
-                const likeMark = status.allFinished ? '<span class="ml-2 text-xl flex-shrink-0">👍</span>' : '';
+                const countdownHtml = daysLeft !== null ? getCountdownBadge(daysLeft) : '';
+                const likeMark = status.allFinished ? '<span class="ml-2 text-xl">👍</span>' : '';
 
+                // タイトルエリアの構造を大幅修正
                 let html = `<div id="study-group-${group.id}" class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 mb-6 transition-all">
-                    <div class="flex justify-between items-center mb-3">
-                        <div class="flex items-center mr-2">
-                            <h2 class="text-xl font-black text-slate-700 break-all">${group.name}</h2>
-                            ${countdownHtml} ${likeMark}
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex-1">
+                            <h2 class="group-title">${group.name}</h2>
+                            <div class="flex items-center gap-2 mt-1">
+                                ${countdownHtml} ${likeMark}
+                            </div>
                         </div>
-                        <span class="font-black flex-shrink-0 ${status.allFinished?'text-emerald-500':'text-indigo-500'}">${status.percent}%</span>
+                        <span class="font-black text-xl flex-shrink-0 ${status.allFinished?'text-emerald-500':'text-indigo-500'}">${status.percent}%</span>
                     </div>
                     <div class="bg-slate-100 h-3 rounded-full overflow-hidden mb-6"><div class="progress-fill ${status.allFinished?'bg-emerald-500':'bg-indigo-500'} h-full" style="width:${status.percent}%"></div></div>`;
                 
