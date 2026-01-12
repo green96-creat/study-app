@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>逆算勉強カレンダー v49.0</title>
+    <title>逆算勉強カレンダー v49.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
@@ -45,7 +45,6 @@
         #event-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
         .color-dot { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 4px solid transparent; }
         
-        /* バッジ：一行を維持し、絶対に潰れないように設定 */
         .days-left { 
             padding: 4px 12px; 
             border-radius: 999px; 
@@ -55,19 +54,18 @@
             white-space: nowrap;
             display: inline-block;
             flex-shrink: 0;
-            margin-top: 4px; /* 改行された時に少し隙間を作る */
+            margin-top: 4px;
         }
         
-        /* タイトル：文字を省略せず、改行を許可 */
         .group-title {
             font-size: 1.25rem;
             font-weight: 900;
             color: #334155;
             line-height: 1.4;
-            display: block; /* 横に並ばず、ブロックとして扱うことで改行しやすくする */
-            word-break: break-all; /* 単語の途中でも改行する */
-            overflow: visible; /* はみ出しを隠さない */
-            text-overflow: clip; /* 三点リーダーを表示しない */
+            display: block;
+            word-break: break-all;
+            overflow: visible;
+            text-overflow: clip;
         }
 
         .summary-chip { background: white; border: 2px solid #e2e8f0; padding: 8px 16px; border-radius: 1rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
@@ -151,7 +149,7 @@
                     <button onclick="saveEvent()" class="py-4 bg-indigo-600 text-white rounded-xl font-black">保存する</button>
                 </div>
                 <button onclick="jumpToStudyFromModal()" class="w-full py-4 bg-[#10b981] text-white rounded-xl font-black shadow-md flex items-center justify-center gap-2">
-                    <span>📚 このテストの勉強ページへ</span>
+                    <span>📚 この予定の勉強ページへ</span>
                 </button>
                 <button id="del-btn" onclick="deleteEvent()" class="w-full py-2 text-rose-400 text-xs font-bold hidden">この予定を削除する</button>
             </div>
@@ -225,10 +223,12 @@
         }
 
         function renderStudy() {
-            const testEvents = events.filter(e => e.name.includes("テスト") || e.name.includes("締切"));
-            document.getElementById('newTestRef').innerHTML = '<option value="">未分類</option>' + testEvents.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+            // すべての予定を選択バーに表示するように修正
+            const allEvents = [...events].sort((a,b) => new Date(a.date) - new Date(b.date));
+            document.getElementById('newTestRef').innerHTML = '<option value="">未分類</option>' + allEvents.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+            
             const area = document.getElementById('study-list-area'); area.innerHTML = '';
-            const groups = [...testEvents, { id: "", name: "未分類" }];
+            const groups = [...allEvents, { id: "", name: "未分類" }];
 
             groups.forEach(group => {
                 const groupTasks = tasks.filter(t => t.testId == group.id);
@@ -244,7 +244,6 @@
                 const countdownHtml = daysLeft !== null ? getCountdownBadge(daysLeft) : '';
                 const likeMark = status.allFinished ? '<span class="ml-2 text-xl">👍</span>' : '';
 
-                // タイトルエリアの構造を大幅修正
                 let html = `<div id="study-group-${group.id}" class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 mb-6 transition-all">
                     <div class="flex justify-between items-start mb-3">
                         <div class="flex-1">
@@ -274,11 +273,14 @@
             const y=currentMonth.getFullYear(), m=currentMonth.getMonth();
             document.getElementById('cal-label').innerText = `${y}年 ${m+1}月`;
             const summaryArea = document.getElementById('calendar-summary'); summaryArea.innerHTML = '';
-            const testEvents = events.filter(e => e.name.includes("テスト") || e.name.includes("締切")).sort((a,b) => new Date(a.date) - new Date(b.date));
-            testEvents.forEach(e => {
+            
+            // カレンダー上のサマリーもすべての予定を表示
+            const allEvents = [...events].sort((a,b) => new Date(a.date) - new Date(b.date));
+            allEvents.forEach(e => {
                 const days = getDaysLeft(e.date);
                 if(days >= -1) summaryArea.insertAdjacentHTML('beforeend', `<div class="summary-chip"><span class="font-black text-slate-700 text-sm">${e.name}</span>${getCountdownBadge(days)}</div>`);
             });
+
             const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
             const first = new Date(y, m, 1).getDay(), last = new Date(y, m+1, 0).getDate();
             for(let i=0; i<first; i++) grid.innerHTML += '<div class="calendar-cell bg-slate-50/30"></div>';
@@ -341,10 +343,10 @@
         renderCalendar();
         switchView(currentView);
 
-        const testEvents = events.filter(e => e.name.includes("テスト") || e.name.includes("締切"));
-        [...testEvents, { id: "" }].forEach(g => {
+        events.forEach(g => {
             lastFinishedStates[g.id] = getGroupStatus(g.id).allFinished;
         });
+        lastFinishedStates[""] = getGroupStatus("").allFinished;
 
         isAppLoading = false;
     </script>
